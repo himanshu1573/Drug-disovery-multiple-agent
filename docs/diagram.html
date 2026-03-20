@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent4Target — Architecture Flow Diagram</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f1a;
+      --bg2: #131629;
+      --bg3: #1a1f36;
+      --card: #1e2540;
+      --border: #2d3561;
+      --accent: #6c63ff;
+      --accent2: #00d4ff;
+      --accent3: #ff6b9d;
+      --green: #00e5a0;
+      --yellow: #ffd166;
+      --text: #e8ecf4;
+      --muted: #8892b0;
+      --depmap: #ff6b9d;
+      --pharos: #ffd166;
+      --ot: #00d4ff;
+      --lit: #00e5a0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ───── Background ───── */
+    .bg-glow {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 20% 20%, rgba(108,99,255,.12) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 35% at 80% 80%, rgba(0,212,255,.08) 0%, transparent 70%);
+    }
+
+    /* ───── Layout ───── */
+    .wrapper { position: relative; z-index: 1; max-width: 1320px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    /* ───── Header ───── */
+    .header { text-align: center; margin-bottom: 64px; }
+    .badge {
+      display: inline-block; padding: 4px 14px; border-radius: 99px;
+      background: rgba(108,99,255,.18); border: 1px solid rgba(108,99,255,.4);
+      font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 16px;
+    }
+    .header h1 {
+      font-size: clamp(28px, 4vw, 48px); font-weight: 700;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      line-height: 1.2; margin-bottom: 12px;
+    }
+    .header p { color: var(--muted); font-size: 16px; max-width: 640px; margin: 0 auto; }
+
+    /* ───── Tab switcher ───── */
+    .tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 40px; }
+    .tab {
+      padding: 10px 24px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card); color: var(--muted);
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      transition: all .2s ease;
+    }
+    .tab:hover { border-color: var(--accent); color: var(--text); }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ───── Panel ───── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ───── Section title ───── */
+    .section-title {
+      font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+    }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ───── Flow diagram ───── */
+    .flow-container {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 16px;
+      padding: 40px 32px; overflow-x: auto;
+    }
+
+    /* ─── Nodes ─── */
+    .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+    .node {
+      position: relative;
+      border-radius: 12px;
+      padding: 14px 28px;
+      font-size: 14px; font-weight: 500;
+      border: 1.5px solid;
+      text-align: center;
+      min-width: 220px;
+      transition: transform .2s, box-shadow .2s;
+      cursor: default;
+    }
+    .node:hover { transform: translateY(-2px); }
+    .node.user {
+      background: linear-gradient(135deg, #1a1635 0%, #1e1b4b 100%);
+      border-color: var(--accent);
+      box-shadow: 0 0 24px rgba(108,99,255,.3);
+    }
+    .node.entry {
+      background: linear-gradient(135deg, #131b30 0%, #1a2540 100%);
+      border-color: var(--accent2);
+      box-shadow: 0 0 16px rgba(0,212,255,.15);
+    }
+    .node.graph {
+      background: linear-gradient(135deg, #1a1635 0%, #221638 100%);
+      border-color: var(--accent);
+    }
+    .node.service {
+      background: linear-gradient(135deg, #131b30 0%, #162340 100%);
+      border-color: var(--accent2);
+    }
+    .node.validate {
+      background: linear-gradient(135deg, #1a2530 0%, #213040 100%);
+      border-color: #60a5fa;
+      box-shadow: 0 0 12px rgba(96,165,250,.12);
+    }
+    .node.merge {
+      background: linear-gradient(135deg, #1a2530 0%, #1e3040 100%);
+      border-color: var(--green);
+      box-shadow: 0 0 12px rgba(0,229,160,.12);
+    }
+    .node.normalize {
+      background: linear-gradient(135deg, #1a2515 0%, #1e3020 100%);
+      border-color: var(--green);
+    }
+    .node.result {
+      background: linear-gradient(135deg, #1a1f35 0%, #1d2940 100%);
+      border-color: var(--yellow);
+      box-shadow: 0 0 24px rgba(255,209,102,.2);
+    }
+
+    .node-icon { font-size: 18px; margin-bottom: 4px; }
+    .node-label { font-size: 13px; color: var(--text); font-weight: 600; }
+    .node-sub { font-size: 11px; color: var(--muted); margin-top: 3px; font-family: 'JetBrains Mono', monospace; }
+
+    /* ─── Arrows ─── */
+    .arrow {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 0; position: relative; margin: 0;
+    }
+    .arrow-line {
+      width: 2px; background: linear-gradient(to bottom, rgba(108,99,255,.5), rgba(108,99,255,.2));
+      flex-shrink: 0;
+    }
+    .arrow-line.short { height: 24px; }
+    .arrow-line.long  { height: 40px; }
+    .arrow-head {
+      width: 0; height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 9px solid rgba(108,99,255,.7);
+      flex-shrink: 0;
+    }
+    .arrow-label {
+      position: absolute; left: calc(50% + 10px);
+      top: 50%; transform: translateY(-50%);
+      font-size: 10px; color: var(--muted); white-space: nowrap;
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg2); padding: 2px 6px; border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    /* ─── Parallel block ─── */
+    .parallel-block {
+      display: flex; flex-direction: column; align-items: center; width: 100%;
+    }
+    .parallel-label {
+      font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 10px;
+    }
+    .parallel-row {
+      display: flex; gap: 16px; justify-content: center;
+      position: relative;
+    }
+    .parallel-row::before {
+      content: '';
+      position: absolute; top: -1px; left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 60px); height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+
+    /* Connector nodes */
+    .node.depmap  { background: linear-gradient(135deg, #2a1520 0%, #321830 100%); border-color: var(--depmap); min-width: 160px; }
+    .node.pharos  { background: linear-gradient(135deg, #2a2010 0%, #32260a 100%); border-color: var(--pharos); min-width: 160px; }
+    .node.ot      { background: linear-gradient(135deg, #101f2a 0%, #0a2632 100%); border-color: var(--ot); min-width: 160px; }
+    .node.lit     { background: linear-gradient(135deg, #102a20 0%, #0a3222 100%); border-color: var(--lit); min-width: 160px; }
+
+    .dot-depmap { color: var(--depmap); }
+    .dot-pharos { color: var(--pharos); }
+    .dot-ot     { color: var(--ot); }
+    .dot-lit    { color: var(--lit); }
+
+    .connector-arrows {
+      display: flex; gap: 16px; align-items: flex-start;
+    }
+    .mini-arrow {
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .mini-arrow-line {
+      width: 2px; height: 28px;
+    }
+    .mini-arrow-line.d { background: linear-gradient(to bottom, rgba(255,107,157,.5), rgba(255,107,157,.1)); }
+    .mini-arrow-line.p { background: linear-gradient(to bottom, rgba(255,209,102,.5), rgba(255,209,102,.1)); }
+    .mini-arrow-line.o { background: linear-gradient(to bottom, rgba(0,212,255,.5), rgba(0,212,255,.1)); }
+    .mini-arrow-line.l { background: linear-gradient(to bottom, rgba(0,229,160,.5), rgba(0,229,160,.1)); }
+    .mini-arrow-head { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; }
+    .mini-arrow-head.d { border-top: 8px solid rgba(255,107,157,.7); }
+    .mini-arrow-head.p { border-top: 8px solid rgba(255,209,102,.7); }
+    .mini-arrow-head.o { border-top: 8px solid rgba(0,212,255,.7); }
+    .mini-arrow-head.l { border-top: 8px solid rgba(0,229,160,.7); }
+
+    /* ─── Horizontal line connector for parallel ─── */
+    .hline-wrap { display: flex; flex-direction: column; align-items: center; width: 100%; }
+    .hline {
+      width: calc(100% - 80px); max-width: 680px;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(255,107,157,.4), rgba(255,209,102,.4), rgba(0,212,255,.4), rgba(0,229,160,.4));
+      border-radius: 1px;
+    }
+    .hline-down { width: 2px; background: rgba(108,99,255,.4); }
+    .hline-down.h32 { height: 32px; }
+    .hline-down.h40 { height: 40px; }
+
+    /* ─── Legend ─── */
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 32px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ─── Info cards ─── */
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 32px; }
+    .info-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 20px; transition: border-color .2s, transform .2s;
+    }
+    .info-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .info-card-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .info-card p { font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px;
+      font-weight: 600; letter-spacing: .05em;
+    }
+    .pill.sequential { background: rgba(108,99,255,.2); color: var(--accent); border: 1px solid rgba(108,99,255,.3); }
+    .pill.parallel   { background: rgba(0,212,255,.15); color: var(--accent2); border: 1px solid rgba(0,212,255,.3); }
+
+    /* ─── Schema panel ─── */
+    .schema-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .schema-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+      transition: border-color .2s;
+    }
+    .schema-card:hover { border-color: var(--accent); }
+    .schema-header {
+      padding: 14px 18px;
+      font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      background: rgba(108,99,255,.08); border-bottom: 1px solid var(--border);
+    }
+    .schema-field { display: flex; justify-content: space-between; align-items: center; padding: 8px 18px; border-bottom: 1px solid rgba(255,255,255,.04); }
+    .schema-field:last-child { border-bottom: none; }
+    .field-name { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent2); }
+    .field-type { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); }
+    .field-badge {
+      font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 600;
+    }
+    .field-badge.req { background: rgba(255,107,157,.15); color: var(--depmap); }
+    .field-badge.opt { background: rgba(139,148,158,.1); color: var(--muted); }
+
+    /* ─── scrollbar ─── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="badge">Architecture</div>
+    <h1>Agent4Target Flow Diagram</h1>
+    <p>Visual map of the LangGraph orchestration, MCP server tools, source connectors, and the data schema.</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('cli', this)">🔄 CLI / LangGraph Flow</button>
+    <button class="tab" onclick="switchTab('mcp', this)">🔌 MCP Server Flow</button>
+    <button class="tab" onclick="switchTab('schema', this)">📐 Data Schema</button>
+  </div>
+
+  <!-- ════════════════════════════════════════ CLI PANEL ════════════════════════════════════════ -->
+  <div id="panel-cli" class="panel active">
+    <div class="section-title">Sequential LangGraph Execution — <code style="font-size:11px;color:var(--accent)">main.py → agent/graph.py</code></div>
+    <div class="flow-container">
+      <div class="flow">
+
+        <!-- User -->
+        <div class="node user">
+          <div class="node-icon">👤</div>
+          <div class="node-label">User (Terminal)</div>
+          <div class="node-sub">gene_symbol · disease_id · sources</div>
+        </div>
+
+        <div class="arrow">
+          <div class="arrow-line short"></div>
+          <div class="arrow-head"></div>
+          <div class="arrow-label">CollectorRequest</div>
+        </div>
+
+        <!-- main.py -->
+        <div class="node entry">
+          <div class="node-icon">🖥️</div>
+          <div class="node-label">main.py</div>
+          <div class="node-sub">_parse_sources → _run_query()</div>
+        </div>
+
+        <div class="arrow">
+          <div class="arrow-line short"></div>
+          <div class="arrow-head"></div>
+          <div class="arrow-label">run_collection_graph()</div>
+        </div>
+
+        <!-- LangGraph -->
+        <div class="node graph">
+          <div class="node-icon">🕸️</div>
+          <div class="node-label">LangGraph StateGraph</div>
+          <div class="node-sub">agent/graph.py · create_collector_graph()</div>
+        </div>
+
+        <div class="arrow">
+          <div class="arrow-line short"></div>
+          <div class="arrow-head"></div>
+        </div>
+
+        <!-- Validate -->
+        <div class="node validate">
+          <div class="node-icon">✅</div>
+          <div class="node-label">Node: validate_input</div>
+          <div class="node-sub">Validates CollectorRequest from state</div>
+        </div>
+
+        <div class="arrow">
+          <div class="arrow-line short"></div>
+          <div class="arrow-head"></div>
+        </div>
+
+        <!-- DepMap node -->
+        <div class="node depmap">
+          <div class="node-icon">🔬</div>
+          <div class="node-label">Node: collect_depmap</div>
+          <div class="node-sub" style="color:var(--depmap)">connectors/depmap.py</div>
+        </div>
+        <div class="arrow"><div class="arrow-line long" style="background:linear-gradient(to bottom,rgba(255,107,157,.6),rgba(255,209,102,.3))"></div><div class="arrow-head"></div></div>
+
+        <!-- PHAROS node -->
+        <div class="node pharos">
+          <div class="node-icon">💊</div>
+          <div class="node-label">Node: collect_pharos</div>
+          <div class="node-sub" style="color:var(--pharos)">connectors/pharos.py</div>
+        </div>
+        <div class="arrow"><div class="arrow-line long" style="background:linear-gradient(to bottom,rgba(255,209,102,.6),rgba(0,212,255,.3))"></div><div class="arrow-head"></div></div>
+
+        <!-- OpenTargets node -->
+        <div class="node ot">
+          <div class="node-icon">🎯</div>
+          <div class="node-label">Node: collect_opentargets</div>
+          <div class="node-sub" style="color:var(--ot)">connectors/opentargets.py</div>
+        </div>
+        <div class="arrow"><div class="arrow-line long" style="background:linear-gradient(to bottom,rgba(0,212,255,.6),rgba(0,229,160,.3))"></div><div class="arrow-head"></div></div>
+
+        <!-- Literature node -->
+        <div class="node lit">
+          <div class="node-icon">📄</div>
+          <div class="node-label">Node: collect_literature</div>
+          <div class="node-sub" style="color:var(--lit)">connectors/literature.py (Europe PMC)</div>
+        </div>
+
+        <div class="arrow">
+          <div class="arrow-line short"></div>
+          <div class="arrow-head"></div>
+        </div>
+
+        <!-- Merge node -->
+        <div class="node merge">
+          <div class="node-icon">🔀</div>
+          <div class="node-label">Node: merge</div>
+          <div class="node-sub">dedupe_evidence → normalize_evidence</div>
+        </div>
+
+        <div class="arrow">
+          <div class="arrow-line short"></div>
+          <div class="arrow-head"></div>
+          <div class="arrow-label">LangGraph END</div>
+        </div>
+
+        <!-- Result -->
+        <div class="node result">
+          <div class="node-icon">📦</div>
+          <div class="node-label">CollectorResult (JSON)</div>
+          <div class="node-sub">run_id · items · source_status · errors</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Info cards -->
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-card-title">⚙️ Execution Mode <span class="pill sequential">Sequential</span></div>
+        <p>Each collector node runs one after the other. LangGraph accumulates state using the <code style="font-size:11px;color:var(--accent2)">Annotated[list, add]</code> reducer — evidence items from all sources merge into a shared state list.</p>
+      </div>
+      <div class="info-card">
+        <div class="info-card-title">🕸️ LangGraph State</div>
+        <p>Defined in <code style="font-size:11px;color:var(--accent2)">agent/state.py</code>. The <code style="font-size:11px;color:var(--accent2)">CollectorState</code> TypedDict holds query, evidence_items, source_status, errors, and final_result.</p>
+      </div>
+      <div class="info-card">
+        <div class="info-card-title">🔀 Merge + Normalize</div>
+        <p><code style="font-size:11px;color:var(--accent2)">agent/normalize.py</code> deduplicates evidence records by a stable hash of (source + target_id + evidence_type + raw_value) and normalizes scores to [0, 1].</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════ MCP PANEL ════════════════════════════════════════ -->
+  <div id="panel-mcp" class="panel">
+    <div class="section-title">MCP Tool Call — <code style="font-size:11px;color:var(--accent)">mcp_server/server.py → agent/collector_service.py</code></div>
+    <div class="flow-container">
+      <div class="flow">
+
+        <!-- LLM -->
+        <div class="node user">
+          <div class="node-icon">🤖</div>
+          <div class="node-label">LLM Client (Claude / GPT)</div>
+          <div class="node-sub">MCP Tool Call with arguments</div>
+        </div>
+
+        <div class="arrow">
+          <div class="arrow-line short"></div>
+          <div class="arrow-head"></div>
+          <div class="arrow-label">stdio / SSE</div>
+        </div>
+
+        <!-- MCP Server -->
+        <div class="node entry">
+          <div class="node-icon">🔌</div>
+          <div class="node-label">MCP Server</div>
+          <div class="node-sub">mcp_server/server.py · call_tool()</div>
+        </div>
+
+        <div class="arrow">
+          <div class="arrow-line short"></div>
+          <div class="arrow-head"></div>
+        </div>
+
+        <!-- Router -->
+        <div class="node validate" style="min-width:280px;">
+          <div class="node-icon">🔀</div>
+          <div class="node-label">Tool Router</div>
+          <div class="node-sub">collect_depmap_evidence · collect_pharos_evidence</div>
+          <div class="node-sub">collect_opentargets_evidence · collect_literature_evidence</div>
+          <div class="node-sub" style="color:var(--green);margin-top:4px;">collect_evidence_bundle (all sources)</div>
+        </div>
+
+        <div class="arrow">
+          <div class="arrow-line short"></div>
+          <div class="arrow-head"></div>
+          <div class="arrow-label">collect_evidence_bundle()</div>
+        </div>
+
+        <!-- Collector Service -->
+        <div class="node service">
+          <div class="node-icon">⚡</div>
+          <div class="node-label">Collector Service</div>
+          <div class="node-sub">agent/collector_service.py</div>
+        </div>
+
+        <!-- Horizontal branch to parallel -->
+        <div class="hline-wrap">
+          <div class="hline-down h32"></div>
+          <div class="hline"></div>
+        </div>
+
+        <!-- Parallel connector arrows -->
+        <div class="connector-arrows">
+          <div class="mini-arrow"><div class="mini-arrow-line d"></div><div class="mini-arrow-head d"></div></div>
+          <div class="mini-arrow"><div class="mini-arrow-line p"></div><div class="mini-arrow-head p"></div></div>
+          <div class="mini-arrow"><div class="mini-arrow-line o"></div><div class="mini-arrow-head o"></div></div>
+          <div class="mini-arrow"><div class="mini-arrow-line l"></div><div class="mini-arrow-head l"></div></div>
+        </div>
+
+        <!-- Parallel row -->
+        <div class="parallel-block">
+          <div class="parallel-label">⚡ asyncio.gather — Concurrent Execution</div>
+          <div class="parallel-row">
+            <div class="node depmap">
+              <div class="node-icon">🔬</div>
+              <div class="node-label">DepMap</div>
+              <div class="node-sub" style="color:var(--depmap)">depmap.py</div>
+            </div>
+            <div class="node pharos">
+              <div class="node-icon">💊</div>
+              <div class="node-label">PHAROS</div>
+              <div class="node-sub" style="color:var(--pharos)">pharos.py</div>
+            </div>
+            <div class="node ot">
+              <div class="node-icon">🎯</div>
+              <div class="node-label">Open Targets</div>
+              <div class="node-sub" style="color:var(--ot)">opentargets.py</div>
+            </div>
+            <div class="node lit">
+              <div class="node-icon">📄</div>
+              <div class="node-label">Literature</div>
+              <div class="node-sub" style="color:var(--lit)">literature.py</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Converge back -->
+        <div class="hline-wrap">
+          <div class="hline"></div>
+          <div class="hline-down h40"></div>
+          <div class="arrow-head"></div>
+        </div>
+
+        <!-- Normalize -->
+        <div class="node normalize">
+          <div class="node-icon">🧹</div>
+          <div class="node-label">Normalize + Dedupe</div>
+          <div class="node-sub">agent/normalize.py · dedupe_evidence → normalize_evidence</div>
+        </div>
+
+        <div class="arrow">
+          <div class="arrow-line short"></div>
+          <div class="arrow-head"></div>
+        </div>
+
+        <!-- Result -->
+        <div class="node result">
+          <div class="node-icon">📦</div>
+          <div class="node-label">CollectorResult</div>
+          <div class="node-sub">Returned as TextContent JSON to LLM</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Info cards -->
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-card-title">⚡ Execution Mode <span class="pill parallel">Parallel</span></div>
+        <p>All connectors run simultaneously via <code style="font-size:11px;color:var(--accent2)">asyncio.gather()</code>. This is significantly faster than the sequential CLI flow, as network I/O operations are non-blocking.</p>
+      </div>
+      <div class="info-card">
+        <div class="info-card-title">🔌 Five MCP Tools Exposed</div>
+        <p><code style="font-size:11px;color:var(--depmap)">collect_depmap_evidence</code> · <code style="font-size:11px;color:var(--pharos)">collect_pharos_evidence</code> · <code style="font-size:11px;color:var(--ot)">collect_opentargets_evidence</code> · <code style="font-size:11px;color:var(--lit)">collect_literature_evidence</code> · <code style="font-size:11px;color:var(--green)">collect_evidence_bundle</code></p>
+      </div>
+      <div class="info-card">
+        <div class="info-card-title">📡 Transport</div>
+        <p>Uses <code style="font-size:11px;color:var(--accent2)">mcp.server.stdio</code> (stdio transport). The server reads from stdin and writes to stdout, making it plug-and-play with any MCP-compatible LLM orchestrator.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════ SCHEMA PANEL ════════════════════════════════════════ -->
+  <div id="panel-schema" class="panel">
+    <div class="section-title">Pydantic Data Models — <code style="font-size:11px;color:var(--accent)">agent/schema.py</code></div>
+    <div class="schema-grid">
+
+      <div class="schema-card">
+        <div class="schema-header" style="color:var(--accent2)">📥 CollectorRequest  <span style="font-size:10px;font-weight:400;color:var(--muted)">(Input)</span></div>
+        <div class="schema-field"><span class="field-name">gene_symbol</span><span class="field-type">str</span><span class="field-badge req">required</span></div>
+        <div class="schema-field"><span class="field-name">disease_id</span><span class="field-type">str | None</span><span class="field-badge opt">optional</span></div>
+        <div class="schema-field"><span class="field-name">species</span><span class="field-type">str</span><span class="field-badge opt">default: Homo sapiens</span></div>
+        <div class="schema-field"><span class="field-name">sources</span><span class="field-type">list[SourceName]</span><span class="field-badge opt">default: all</span></div>
+        <div class="schema-field"><span class="field-name">max_literature_articles</span><span class="field-type">int</span><span class="field-badge opt">1–20</span></div>
+        <div class="schema-field"><span class="field-name">run_id</span><span class="field-type">str</span><span class="field-badge opt">auto-generated</span></div>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-header" style="color:var(--yellow)">📦 CollectorResult  <span style="font-size:10px;font-weight:400;color:var(--muted)">(Output)</span></div>
+        <div class="schema-field"><span class="field-name">schema_version</span><span class="field-type">str</span><span class="field-badge opt">0.1.0</span></div>
+        <div class="schema-field"><span class="field-name">run_id</span><span class="field-type">str</span><span class="field-badge req">required</span></div>
+        <div class="schema-field"><span class="field-name">query</span><span class="field-type">CollectorRequest</span><span class="field-badge req">required</span></div>
+        <div class="schema-field"><span class="field-name">items</span><span class="field-type">list[EvidenceRecord]</span><span class="field-badge opt">optional</span></div>
+        <div class="schema-field"><span class="field-name">source_status</span><span class="field-type">list[SourceStatus]</span><span class="field-badge opt">optional</span></div>
+        <div class="schema-field"><span class="field-name">errors</span><span class="field-type">list[ErrorRecord]</span><span class="field-badge opt">optional</span></div>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-header" style="color:var(--green)">🧬 EvidenceRecord</div>
+        <div class="schema-field"><span class="field-name">source</span><span class="field-type">SourceName</span><span class="field-badge req">required</span></div>
+        <div class="schema-field"><span class="field-name">target_id</span><span class="field-type">str</span><span class="field-badge req">required</span></div>
+        <div class="schema-field"><span class="field-name">target_symbol</span><span class="field-type">str</span><span class="field-badge req">required</span></div>
+        <div class="schema-field"><span class="field-name">evidence_type</span><span class="field-type">str</span><span class="field-badge req">required</span></div>
+        <div class="schema-field"><span class="field-name">normalized_score</span><span class="field-type">float</span><span class="field-badge opt">0.0–1.0</span></div>
+        <div class="schema-field"><span class="field-name">confidence</span><span class="field-type">float</span><span class="field-badge opt">default: 0.5</span></div>
+        <div class="schema-field"><span class="field-name">summary</span><span class="field-type">str | None</span><span class="field-badge opt">optional</span></div>
+        <div class="schema-field"><span class="field-name">provenance</span><span class="field-type">Provenance</span><span class="field-badge req">required</span></div>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-header" style="color:var(--accent)">📊 SourceStatus</div>
+        <div class="schema-field"><span class="field-name">source</span><span class="field-type">SourceName</span><span class="field-badge req">required</span></div>
+        <div class="schema-field"><span class="field-name">status</span><span class="field-type">success|partial|failed|skipped</span><span class="field-badge req">required</span></div>
+        <div class="schema-field"><span class="field-name">duration_ms</span><span class="field-type">int</span><span class="field-badge opt">ms</span></div>
+        <div class="schema-field"><span class="field-name">record_count</span><span class="field-type">int</span><span class="field-badge opt">count</span></div>
+        <div class="schema-field"><span class="field-name">error_code</span><span class="field-type">ErrorCode | None</span><span class="field-badge opt">optional</span></div>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-header" style="color:var(--depmap)">🔌 SourceName Enum</div>
+        <div class="schema-field"><span class="field-name">DEPMAP</span><span class="field-type">"depmap"</span><span style="font-size:12px;">🔬</span></div>
+        <div class="schema-field"><span class="field-name">PHAROS</span><span class="field-type">"pharos"</span><span style="font-size:12px;">💊</span></div>
+        <div class="schema-field"><span class="field-name">OPENTARGETS</span><span class="field-type">"opentargets"</span><span style="font-size:12px;">🎯</span></div>
+        <div class="schema-field"><span class="field-name">LITERATURE</span><span class="field-type">"literature"</span><span style="font-size:12px;">📄</span></div>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-header" style="color:var(--pharos)">⚠️ ErrorCode Enum</div>
+        <div class="schema-field"><span class="field-name">TIMEOUT</span><span class="field-type">"timeout"</span></div>
+        <div class="schema-field"><span class="field-name">RATE_LIMIT</span><span class="field-type">"rate_limit"</span></div>
+        <div class="schema-field"><span class="field-name">NOT_FOUND</span><span class="field-type">"not_found"</span></div>
+        <div class="schema-field"><span class="field-name">UPSTREAM_ERROR</span><span class="field-type">"upstream_error"</span></div>
+        <div class="schema-field"><span class="field-name">PARSE_ERROR</span><span class="field-type">"parse_error"</span></div>
+        <div class="schema-field"><span class="field-name">INTERNAL_ERROR</span><span class="field-type">"internal_error"</span></div>
+      </div>
+
+    </div>
+
+    <!-- Legend -->
+    <div class="legend" style="margin-top:32px;">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--depmap)"></div> DepMap</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--pharos)"></div> PHAROS</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--ot)"></div> Open Targets</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--lit)"></div> Literature (Europe PMC)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> LangGraph</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div> MCP Server</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + name).classList.add('active');
+  }
+</script>
+</body>
+</html>

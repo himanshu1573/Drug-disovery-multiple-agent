@@ -1,0 +1,40 @@
+[run]
+branch = True
+source =
+    agents
+    mcps
+
+[report]
+omit =
+    */__init__.py
+    agents/optional_agents/*
+    agents/prompts.py
+    agents/summary_agent.py
+    agents/content_memory.py
+    agents/prompt_trace.py
+    agents/llm_policy.py
+    agents/provider_select.py
+    agents/query_interpretation_agent.py
+    agents/followup_agent.py
+    agents/url_resource_fetcher.py
+    agents/artifact_store.py
+    agents/collector_service.py
+    agents/conflict_resolution_agent.py
+    agents/dossier_agent.py
+    agents/evidence_graph_agent.py
+    agents/source_collection_agent.py
+    agents/verification_agent.py
+    agents/mcp_runtime.py
+    agents/planning_agent.py
+    agents/summary_validation.py
+    cli/*
+    ui_api/*
+    venv/*
+    external_mcps/*
+    mcps/common.py
+    mcps/*_mcp.py
+    mcps/ext_*.py
+
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:

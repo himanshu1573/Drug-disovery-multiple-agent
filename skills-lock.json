@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "skills": {
+    "langchain": {
+      "source": "davila7/claude-code-templates",
+      "sourceType": "github",
+      "computedHash": "f955bc6f606f34a50eb15a2452a26460c9274d14eb245649a34b416b3aecd206"
+    },
+    "langchain-architecture": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "8bcb9750c6e564da50f8a6b4e8a9b60030a48a1323e5dee64c37469d3192c683"
+    },
+    "langgraph": {
+      "source": "sameeh07/agent-skills",
+      "sourceType": "github",
+      "computedHash": "390ff5298bc991bf7a0a57d3f96d2323304b2a4007677a062177d92c0f61be5d"
+    },
+    "langgraph-agent-patterns": {
+      "source": "lubu-labs/langchain-agent-skills",
+      "sourceType": "github",
+      "computedHash": "dc800d9351d2f4c201782d2e6b2f74de19070a89b89c1d2acf7e698d3b476964"
+    },
+    "langgraph-docs": {
+      "source": "langchain-ai/deepagents",
+      "sourceType": "github",
+      "computedHash": "00bb7db4700630b80a3526c430059ee03a0dade284756b114f2e36f99bf87776"
+    },
+    "langgraph-error-handling": {
+      "source": "lubu-labs/langchain-agent-skills",
+      "sourceType": "github",
+      "computedHash": "547167b39f6beba9bc7fb5f9ff76ce02a151a21bb3cf48347d937697c1241bd0"
+    },
+    "langgraph-project-setup": {
+      "source": "lubu-labs/langchain-agent-skills",
+      "sourceType": "github",
+      "computedHash": "fc0ef8e4c0a61c31958aeb02294564b97e884199e4e4429d98c1bd21bab8497e"
+    },
+    "langgraph-state-management": {
+      "source": "lubu-labs/langchain-agent-skills",
+      "sourceType": "github",
+      "computedHash": "a680393641ad492c9622b7dca9ea523aa2e00585df9be38b7fe46f56c46e83e1"
+    },
+    "langgraph-testing-evaluation": {
+      "source": "lubu-labs/langchain-agent-skills",
+      "sourceType": "github",
+      "computedHash": "d00cf50ed8040582d212eba4cab36da6b00a5602c3dc4d317a0c89c81a66043c"
+    },
+    "langgraph-tutor": {
+      "source": "timothywarner-org/agents2",
+      "sourceType": "github",
+      "computedHash": "df956e3714f9a6737301f9132514773ddc1148e4d164b18a66995ba824153fda"
+    },
+    "mastering-langgraph": {
+      "source": "spillwavesolutions/mastering-langgraph-agent-skill",
+      "sourceType": "github",
+      "computedHash": "163dace4860ce2dcc56298e0d57dc8ae0a1c457329467ae114dbab3f9361ed39"
+    },
+    "mcp-builder": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "fc68038c900eb801f73ff96130c9f9dba533cc94212ed8435833242f196dedcf"
+    },
+    "multi-agent-orchestration": {
+      "source": "qodex-ai/ai-agent-skills",
+      "sourceType": "github",
+      "computedHash": "e5517caccf376ec61d8f94cd22f1bdd44a588a61214fcf8a67b75ba3d23a1864"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.env
+deploy/.env
+
+# Node
+node_modules/
+.next/
+.wrangler/
+
+# Large Bio Data
+.depmap_cache/
+mcps/connectors/.depmap_cache/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+/.agent/
+/.vscode/
+
+# Runtime artifacts (generated)
+artifacts/*
+!artifacts/.gitkeep

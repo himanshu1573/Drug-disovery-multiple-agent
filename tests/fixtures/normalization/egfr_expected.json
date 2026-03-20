@@ -1,0 +1,14 @@
+[
+  {
+    "source": "opentargets",
+    "target_id": "ENSG00000146648",
+    "target_symbol": "EGFR",
+    "disease_id": null,
+    "evidence_type": "association",
+    "raw_value": 1.2,
+    "normalized_score": 1.0,
+    "confidence": 0.0,
+    "summary": "egfr disease association",
+    "normalization_policy_version": "phase1.v1"
+  }
+]

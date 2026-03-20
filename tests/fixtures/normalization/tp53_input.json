@@ -1,0 +1,22 @@
+[
+  {
+    "source": "literature",
+    "target_id": "TP53:PMID:123",
+    "target_symbol": " tp53 ",
+    "disease_id": "MONDO_0007254",
+    "evidence_type": "literature_article",
+    "raw_value": "non-numeric",
+    "confidence": 0.6,
+    "summary": "  tp53 paper ",
+    "support": {
+      "pmid": "123"
+    },
+    "provenance": {
+      "provider": "Europe PMC",
+      "endpoint": "/search",
+      "query": {
+        "gene_symbol": "TP53"
+      }
+    }
+  }
+]

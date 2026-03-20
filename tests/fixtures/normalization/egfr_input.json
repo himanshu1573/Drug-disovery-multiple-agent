@@ -1,0 +1,19 @@
+[
+  {
+    "source": "opentargets",
+    "target_id": "ENSG00000146648",
+    "target_symbol": " egfr ",
+    "disease_id": "",
+    "evidence_type": "association",
+    "raw_value": 1.2,
+    "confidence": -0.4,
+    "summary": "  egfr disease association  ",
+    "provenance": {
+      "provider": "Open Targets",
+      "endpoint": "/graphql",
+      "query": {
+        "gene_symbol": "EGFR"
+      }
+    }
+  }
+]

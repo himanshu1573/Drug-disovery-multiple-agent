@@ -1,0 +1,14 @@
+[
+  {
+    "source": "literature",
+    "target_id": "TP53:PMID:123",
+    "target_symbol": "TP53",
+    "disease_id": "MONDO_0007254",
+    "evidence_type": "literature_article",
+    "raw_value": "non-numeric",
+    "normalized_score": null,
+    "confidence": 0.6,
+    "summary": "tp53 paper",
+    "normalization_policy_version": "phase1.v1"
+  }
+]

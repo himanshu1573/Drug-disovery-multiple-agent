@@ -1,0 +1,47 @@
+{
+  "artifact_path": "/tmp/dossier.json",
+  "artifacts": {
+    "graph": "/tmp/graph.json",
+    "plan": "/tmp/plan.json"
+  },
+  "conflicts": [],
+  "emitted_at": "PLACEHOLDER",
+  "errors": [],
+  "graph_snapshot": {
+    "artifact_path": null,
+    "edges": [],
+    "generated_at": "PLACEHOLDER",
+    "graph_format": "json",
+    "nodes": []
+  },
+  "handoff_payload": {
+    "blocking_issues": [],
+    "conflict_count": 0,
+    "dossier_artifact_path": "/tmp/dossier.json",
+    "evidence_count": 0,
+    "graph_artifact_path": "/tmp/graph.json",
+    "handoff_version": "phase2.v1",
+    "phase": "phase2",
+    "ready": false,
+    "reason": "awaiting_human_review",
+    "requested_source_count": 0,
+    "review_required": true,
+    "run_id": "run-contract",
+    "successful_source_count": 0,
+    "warning_issues": []
+  },
+  "query": {},
+  "review_decision": null,
+  "run_id": "run-contract",
+  "run_metadata": {
+    "collector_node_sequence": [
+      "emit_dossier"
+    ]
+  },
+  "schema_version": "0.1.0",
+  "source_status": [],
+  "summary_markdown": "## Source Coverage\n## Confidence Profile\n## Conflict Notes\n## Grounded Findings",
+  "plan": {},
+  "verification_report": {},
+  "verified_evidence": []
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "source": "depmap",
+    "target_id": "ENSG00000133703",
+    "target_symbol": "KRAS",
+    "disease_id": "EFO_0001071",
+    "evidence_type": "dependency",
+    "raw_value": 0.91,
+    "normalized_score": 0.91,
+    "confidence": 0.8,
+    "summary": "kras dependency call",
+    "normalization_policy_version": "phase1.v1"
+  }
+]

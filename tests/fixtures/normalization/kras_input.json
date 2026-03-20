@@ -1,0 +1,19 @@
+[
+  {
+    "source": "depmap",
+    "target_id": "ENSG00000133703",
+    "target_symbol": " kras ",
+    "disease_id": "EFO_0001071",
+    "evidence_type": "dependency",
+    "raw_value": 0.91,
+    "confidence": 0.8,
+    "summary": "  kras dependency call ",
+    "provenance": {
+      "provider": "depmap",
+      "endpoint": "/gene",
+      "query": {
+        "gene_symbol": "KRAS"
+      }
+    }
+  }
+]

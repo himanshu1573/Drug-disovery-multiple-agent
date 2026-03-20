@@ -1,0 +1,21 @@
+FROM node:20-alpine
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+ARG NEXT_PUBLIC_API_BASE_URL=/api
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
+WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json* /app/
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+COPY frontend /app
+
+RUN npm run build
+
+ENV NODE_ENV=production
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start", "--", "-p", "3000", "-H", "0.0.0.0"]

@@ -110,24 +110,34 @@ and also snapshotted to disk so paused runs can be resumed after a restart.
 flowchart TD
     S([START]) --> V[validate_input]
     V --> P[plan_collection]
-    P --> PG{{plan_review_gate<br/>optional pause}}
-    PG --> C[collect_sources_parallel<br/>MCP: DepMap · PHAROS · Open Targets · Europe PMC]
+    P --> PG{{plan_review_gate / optional pause}}
+    PG --> C[collect_sources_parallel]
     C --> N[normalize_evidence]
     N --> VE[verify_evidence]
     VE --> AC[analyze_conflicts]
     AC --> AS{assess_sufficiency}
-    AS -- insufficient: widen search --> P
-    AS -- ok --> G[build_evidence_graph]
+    AS --> G[build_evidence_graph]
     G --> E[generate_explanation]
     E --> SD{supervisor_decide}
-    SD -- recollect --> P
-    SD -- review required --> RB[prepare_review_brief]
-    RB --> HG{{human_review_gate<br/>optional pause}}
-    HG -- needs_more_evidence --> P
-    HG -- approved / rejected --> D[emit_dossier]
-    SD -- emit --> D
+    SD --> RB[prepare_review_brief]
+    RB --> HG{{human_review_gate / optional pause}}
+    HG --> D[emit_dossier]
+    SD --> D
     D --> X([END])
+    AS -.-> P
+    SD -.-> P
+    HG -.-> P
 ```
+
+Solid arrows are the main path; dotted arrows are the three loops back to planning:
+
+| Loop back to `plan_collection` | When |
+|---|---|
+| from `assess_sufficiency` | evidence is insufficient → retry with a wider search |
+| from `supervisor_decide` | the supervisor asks to re-collect |
+| from `human_review_gate` | a reviewer answers `needs_more_evidence` |
+
+`collect_sources_parallel` queries DepMap, PHAROS, Open Targets and Europe PMC through MCP servers.
 
 - **Auto re-collect:** when evidence is insufficient (and there's no blocking error or high-severity conflict),
   the graph loops back to planning with larger `top_k` / literature limits

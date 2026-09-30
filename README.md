@@ -64,7 +64,7 @@ configured, the UI asks each visitor for their own **OpenAI** or **Google Gemini
 (Gemini has a free tier: [aistudio.google.com/apikey](https://aistudio.google.com/apikey)).
 
 ```mermaid
-%%{init: {"theme":"default","themeVariables":{"background":"#ffffff"}}}%%
+%%{init: {"theme":"base","themeVariables":{"background":"#0d1117","primaryColor":"#161b22","primaryTextColor":"#ffffff","primaryBorderColor":"#ffffff","secondaryColor":"#161b22","tertiaryColor":"#0d1117","lineColor":"#ffffff","textColor":"#ffffff","nodeTextColor":"#ffffff","edgeLabelBackground":"#0d1117","clusterBkg":"#0d1117","clusterBorder":"#ffffff","actorBkg":"#161b22","actorBorder":"#ffffff","actorTextColor":"#ffffff","actorLineColor":"#ffffff","signalColor":"#ffffff","signalTextColor":"#ffffff","labelBoxBkgColor":"#161b22","labelBoxBorderColor":"#ffffff","labelTextColor":"#ffffff","loopTextColor":"#ffffff","noteBkgColor":"#161b22","noteBorderColor":"#ffffff","noteTextColor":"#ffffff","activationBkgColor":"#161b22","activationBorderColor":"#ffffff","sequenceNumberColor":"#0d1117"}}}%%
 sequenceDiagram
     participant B as Browser (sessionStorage)
     participant W as Next.js / Nginx
@@ -108,7 +108,7 @@ shared `CollectorState` ([`agents/state.py`](agents/state.py)); state is checkpo
 and also snapshotted to disk so paused runs can be resumed after a restart.
 
 ```mermaid
-%%{init: {"theme":"default","themeVariables":{"background":"#ffffff"}}}%%
+%%{init: {"theme":"base","themeVariables":{"background":"#0d1117","primaryColor":"#161b22","primaryTextColor":"#ffffff","primaryBorderColor":"#ffffff","secondaryColor":"#161b22","tertiaryColor":"#0d1117","lineColor":"#ffffff","textColor":"#ffffff","nodeTextColor":"#ffffff","edgeLabelBackground":"#0d1117","clusterBkg":"#0d1117","clusterBorder":"#ffffff","actorBkg":"#161b22","actorBorder":"#ffffff","actorTextColor":"#ffffff","actorLineColor":"#ffffff","signalColor":"#ffffff","signalTextColor":"#ffffff","labelBoxBkgColor":"#161b22","labelBoxBorderColor":"#ffffff","labelTextColor":"#ffffff","loopTextColor":"#ffffff","noteBkgColor":"#161b22","noteBorderColor":"#ffffff","noteTextColor":"#ffffff","activationBkgColor":"#161b22","activationBorderColor":"#ffffff","sequenceNumberColor":"#0d1117"}}}%%
 flowchart TD
     S([START]) --> V[validate_input]
     V --> P[plan_collection]

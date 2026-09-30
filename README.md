@@ -64,6 +64,7 @@ configured, the UI asks each visitor for their own **OpenAI** or **Google Gemini
 (Gemini has a free tier: [aistudio.google.com/apikey](https://aistudio.google.com/apikey)).
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","primaryColor":"#ffffff","primaryTextColor":"#1f2933","primaryBorderColor":"#5b6b7c","lineColor":"#5b6b7c","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff","noteBkgColor":"#f4f6f8","noteTextColor":"#1f2933","actorBkg":"#ffffff","actorBorder":"#5b6b7c","actorTextColor":"#1f2933","signalColor":"#5b6b7c","signalTextColor":"#1f2933","labelBoxBkgColor":"#ffffff","labelTextColor":"#1f2933","sequenceNumberColor":"#ffffff"}}}%%
 sequenceDiagram
     participant B as Browser (sessionStorage)
     participant W as Next.js / Nginx
@@ -107,6 +108,7 @@ shared `CollectorState` ([`agents/state.py`](agents/state.py)); state is checkpo
 and also snapshotted to disk so paused runs can be resumed after a restart.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#ffffff","primaryColor":"#ffffff","primaryTextColor":"#1f2933","primaryBorderColor":"#5b6b7c","lineColor":"#5b6b7c","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff","clusterBkg":"#ffffff","clusterBorder":"#5b6b7c","edgeLabelBackground":"#ffffff","nodeTextColor":"#1f2933"}}}%%
 flowchart TD
     S([START]) --> V[validate_input]
     V --> P[plan_collection]

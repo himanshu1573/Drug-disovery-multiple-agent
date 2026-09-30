@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { AssistantToolUI, type SourceStep as UISourceStep } from "@/components/AssistantToolUI";
 import { ChatComposer } from "@/components/ChatComposer";
 import { MarkdownReport } from "@/components/MarkdownReport";
@@ -9,9 +10,10 @@ import { SourcesGrid } from "@/components/SourcesGrid";
 import { PlanApprovalPanel } from "@/components/PlanApprovalPanel";
 import { ReviewDecisionPanel } from "@/components/ReviewDecisionPanel";
 import { useRunEvents } from "@/hooks/useRunEvents";
-import { createRun, createRunFromText, postFollowup } from "@/lib/api";
+import { createRun, createRunFromText, getHealth, postFollowup } from "@/lib/api";
+import { getSessionLlmKey, maskKey, PROVIDER_LABEL, setSessionLlmKey, type SessionLlmKey } from "@/lib/llmKey";
 import type { SourceName } from "@/lib/types";
-import { Github } from "lucide-react";
+import { Github, KeyRound } from "lucide-react";
 
 const ALL_SOURCES: { key: SourceName; label: string }[] = [
   { key: "depmap", label: "DepMap" },
@@ -183,13 +185,76 @@ function tabButton(active: boolean): string {
     : "text-neutral-400 hover:text-neutral-200 border-b border-transparent";
 }
 
+type ServerLlm = "unknown" | "available" | "unavailable";
+
+function KeyStatus({
+  llmKey,
+  serverLlm,
+  onChange,
+  onClear,
+}: {
+  llmKey: SessionLlmKey | null;
+  serverLlm: ServerLlm;
+  onChange: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-400">
+      <KeyRound className="h-3.5 w-3.5 shrink-0" />
+      <span>
+        {llmKey
+          ? `${PROVIDER_LABEL[llmKey.provider]} key ${maskKey(llmKey.apiKey)}`
+          : serverLlm === "available"
+            ? "Using the server's API key"
+            : "No API key added"}
+      </span>
+      <button type="button" onClick={onChange} className="font-medium text-neutral-200 hover:underline">
+        {llmKey ? "Change" : serverLlm === "available" ? "Use your own" : "Add key"}
+      </button>
+      {llmKey ? (
+        <button type="button" onClick={onClear} className="text-neutral-500 hover:text-neutral-200">
+          Clear
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function Page() {
   const [runId, setRunId] = useState<string | null>(null);
   const [reviewerId, setReviewerId] = useState<string>("user@example.com");
   const [history, setHistory] = useState<Array<{ runId: string; startedAt: number; title: string; gene: string }>>([]);
   const [activeTab, setActiveTab] = useState<"answer" | "links" | "images">("answer");
+  const [llmKey, setLlmKey] = useState<SessionLlmKey | null>(null);
+  const [serverLlm, setServerLlm] = useState<ServerLlm>("unknown");
+  const [keyDialogOpen, setKeyDialogOpen] = useState(false);
+  const needsKey = !llmKey && serverLlm === "unavailable";
 
   const { log, paused, failed, completed, snapshot } = useRunEvents(runId);
+
+  useEffect(() => {
+    setLlmKey(getSessionLlmKey());
+    getHealth()
+      .then((h) => setServerLlm(h.provider?.provider && h.provider.provider !== "none" ? "available" : "unavailable"))
+      .catch(() => setServerLlm("unknown"));
+  }, []);
+
+  // Without a server-side key nothing can run, so ask for one up-front.
+  useEffect(() => {
+    if (needsKey) setKeyDialogOpen(true);
+  }, [needsKey]);
+
+  const saveLlmKey = (key: SessionLlmKey | null) => {
+    setSessionLlmKey(key);
+    setLlmKey(key);
+    if (key) setKeyDialogOpen(false);
+  };
+
+  const requireKeyForRun = () => {
+    if (!needsKey) return;
+    setKeyDialogOpen(true);
+    throw new Error("Add an API key to start a run.");
+  };
 
   // Restore state on load:
   // - prefer URL `?run=<id>` (shareable)
@@ -294,6 +359,7 @@ export default function Page() {
     per_source_top_k?: number;
     max_literature_articles?: number;
   }) => {
+    requireKeyForRun();
     const resp = await createRun({
       gene_symbol: input.gene_symbol.trim(),
       objective: input.objective?.trim() || undefined,
@@ -312,6 +378,7 @@ export default function Page() {
     per_source_top_k?: number;
     max_literature_articles?: number;
   }) => {
+    requireKeyForRun();
     const resp = await createRunFromText({
       message: input.message.trim(),
       sources: input.sources,
@@ -334,6 +401,10 @@ export default function Page() {
   }, [paused?.reason, reviewerId, runId, snapshot]);
 
   const showGate = Boolean(gatePanel);
+
+  const keyStatus = (
+    <KeyStatus llmKey={llmKey} serverLlm={serverLlm} onChange={() => setKeyDialogOpen(true)} onClear={() => saveLlmKey(null)} />
+  );
 
   return (
     <div className="flex h-screen bg-neutral-950 text-neutral-100">
@@ -392,6 +463,8 @@ export default function Page() {
           </a>
         </div>
 
+        <div className="border-t border-white/10 px-2 pt-3 pb-3">{keyStatus}</div>
+
         <div className="border-t border-white/10 px-2 pt-3">
           <div className="text-[11px] text-neutral-600">Run mode: {runState} • Sources: one-by-one</div>
         </div>
@@ -404,6 +477,7 @@ export default function Page() {
             onStartFromText={startRunFromText}
             initialGene="KRAS"
             initialSources={ALL_SOURCES.map((s) => s.key)}
+            keyStatus={keyStatus}
           />
         ) : (
           <RunView
@@ -429,6 +503,16 @@ export default function Page() {
           />
         )}
       </main>
+
+      {keyDialogOpen ? (
+        <ApiKeyDialog
+          required={needsKey}
+          serverKeyAvailable={serverLlm === "available"}
+          current={llmKey}
+          onSave={saveLlmKey}
+          onClose={() => setKeyDialogOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -438,11 +522,13 @@ function HomeView({
   onStartFromText,
   initialGene,
   initialSources,
+  keyStatus,
 }: {
   onStart: (input: { gene_symbol: string; objective?: string; disease_id?: string; sources: SourceName[]; per_source_top_k?: number; max_literature_articles?: number }) => Promise<void>;
   onStartFromText: (input: { message: string; sources: SourceName[]; per_source_top_k?: number; max_literature_articles?: number }) => Promise<void>;
   initialGene: string;
   initialSources: SourceName[];
+  keyStatus: ReactNode;
 }) {
   const [gene, setGene] = useState(initialGene);
   const [objective, setObjective] = useState("");
@@ -599,6 +685,9 @@ function HomeView({
         </div>
 
         {error ? <div className="mt-3 text-sm text-red-300">{error}</div> : null}
+
+        {/* The sidebar shows key status on desktop; it is hidden on small screens. */}
+        <div className="mt-4 md:hidden">{keyStatus}</div>
       </div>
 
         <div className="mt-6 flex flex-wrap justify-center gap-2">

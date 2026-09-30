@@ -51,6 +51,10 @@ On the VPS, create `deploy/.env` (copy from `deploy/.env.example`) and set:
 
 The backend writes run artifacts/state under `A4T_ARTIFACT_DIR` (mounted as a Docker volume).
 
+Server keys are optional for the web UI. If none is configured, each visitor is asked for their own OpenAI or
+Gemini key when they open the app. That key stays in their browser tab (`sessionStorage`), is sent with their
+requests, and is never written to env, artifacts, or logs on the server.
+
 ### How to set your API key (beginner steps)
 
 1) Get a provider key:
@@ -90,9 +94,10 @@ Open:
 - UI: `http://<your-domain>/`
 - API: `http://<your-domain>/api/runs/<run_id>/state`
 
-## 4) TLS (recommended)
+## 4) TLS (required for public deployments)
 
-The included Nginx config is HTTP-only. For HTTPS, choose one:
+The included Nginx config is HTTP-only. Visitors send their API keys in request headers, so a public deployment
+must serve HTTPS or those keys travel in cleartext. Choose one:
 
 1) Put Cloudflare in front (easy) and keep origin HTTP.
 2) Add a TLS terminator (Caddy) in front of Nginx.

@@ -41,5 +41,7 @@ fi
   tests/test_review_interface_contract.py \
   tests/test_summary_validation.py \
   tests/test_state_machine_e2e.py \
-  tests/test_contract_regressions.py
+  tests/test_contract_regressions.py \
+  tests/test_llm_credentials.py \
+  tests/test_ui_session_keys_api.py
 "$PYTHON_BIN" -m coverage report --fail-under=80

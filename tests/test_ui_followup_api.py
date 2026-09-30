@@ -203,5 +203,7 @@ def test_from_text_out_of_scope_returns_400(monkeypatch: pytest.MonkeyPatch, tmp
     from ui_api.app import app
 
     client = TestClient(app)
-    resp = client.post("/api/runs/from-text", json={"message": "Tell me a joke"})
+    # A session key is needed to reach interpretation; the heuristic rejects this without an LLM call.
+    headers = {"X-LLM-Provider": "openai", "X-LLM-API-Key": "sk-test"}
+    resp = client.post("/api/runs/from-text", json={"message": "Tell me a joke"}, headers=headers)
     assert resp.status_code == 400

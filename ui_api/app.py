@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from typing import Any, AsyncGenerator
+from typing import Annotated, Any, AsyncGenerator
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -13,8 +13,10 @@ from dotenv import load_dotenv
 
 from agents.artifact_store import artifact_layout, artifact_root
 from agents.graph import CollectionPaused, get_collection_state, resume_collection_graph, run_collection_graph
+from agents.llm_credentials import LLMCredentials, LLMProvider, use_llm_credentials
+from agents.llm_policy import require_llm_agents
 from agents.plan_interface import apply_plan_decision
-from agents.provider_select import current_provider_selection, select_provider_once
+from agents.provider_select import current_provider_selection, probe_llm_credentials, select_provider_once
 from agents.run_state_store import RunStateStore
 from agents.review_interface import apply_review_decision
 from agents.schema import CollectorRequest, EvidenceDossier, EvidenceRecord, SourceName
@@ -108,6 +110,46 @@ if _bool_env("A4T_UI_CORS_ENABLED", "1"):
     )
 
 
+_MAX_API_KEY_LEN = 512
+
+
+def session_llm_credentials(
+    x_llm_provider: Annotated[str | None, Header()] = None,
+    x_llm_api_key: Annotated[str | None, Header()] = None,
+) -> LLMCredentials | None:
+    """Read a bring-your-own-key from request headers.
+
+    The key lives only in the browser session and in memory for the requests/runs it starts;
+    it is never written to env, artifacts, or logs.
+    """
+    raw_provider = (x_llm_provider or "").strip().lower()
+    api_key = (x_llm_api_key or "").strip()
+    if not raw_provider and not api_key:
+        return None
+    if raw_provider not in {"openai", "google", "gemini"}:
+        raise HTTPException(status_code=400, detail="X-LLM-Provider must be 'openai' or 'google'.")
+    if not api_key or len(api_key) > _MAX_API_KEY_LEN:
+        raise HTTPException(status_code=400, detail="X-LLM-API-Key is required with X-LLM-Provider.")
+    provider: LLMProvider = "openai" if raw_provider == "openai" else "google"
+    return LLMCredentials(provider=provider, api_key=api_key)
+
+
+SessionLLMCredentials = Annotated[LLMCredentials | None, Depends(session_llm_credentials)]
+
+
+async def _ensure_llm_access(creds: LLMCredentials | None) -> None:
+    """Reject a run up-front when neither the session nor the server has a working key.
+
+    Otherwise the run collects sources for minutes and only fails at report generation.
+    """
+    selection = await select_provider_once()
+    if creds is None and selection.provider == "none" and require_llm_agents():
+        raise HTTPException(
+            status_code=401,
+            detail="No LLM API key available. Add your OpenAI or Google Gemini API key to run the agents.",
+        )
+
+
 @app.on_event("startup")
 async def _select_llm_provider_on_startup() -> None:
     # Choose a single provider for this process (OpenAI-first by default) so runs are consistent.
@@ -132,51 +174,64 @@ async def health() -> dict[str, Any]:
     }
 
 
-async def _run_in_background(request, *, is_resume: bool = False) -> None:
+@app.post("/api/session/validate")
+async def validate_session_key(creds: SessionLLMCredentials) -> dict[str, Any]:
+    """Check a bring-your-own-key before the UI stores it for the browser session."""
+    if creds is None:
+        raise HTTPException(status_code=400, detail="Send X-LLM-Provider and X-LLM-API-Key headers.")
+    valid, error = await probe_llm_credentials(creds)
+    return {"valid": valid, "provider": creds.provider, "error": error}
+
+
+async def _run_in_background(request, *, is_resume: bool = False, creds: LLMCredentials | None = None) -> None:
     run_id = request.run_id
     BUS.ensure_run(run_id)
 
     def on_progress(event_type: str, payload: dict[str, Any]) -> None:
         BUS.publish(run_id, event_type, payload)
 
-    try:
-        if is_resume:
-            BUS.publish(run_id, "run_status", {"run_id": run_id, "status": "resuming"})
-            result = await resume_collection_graph(request, progress_cb=on_progress)
-        else:
-            BUS.publish(run_id, "run_status", {"run_id": run_id, "status": "running"})
-            result = await run_collection_graph(request, progress_cb=on_progress)
+    # The session key is visible only inside this context; LangGraph nodes and LLM calls inherit it.
+    with use_llm_credentials(creds):
+        try:
+            if is_resume:
+                BUS.publish(run_id, "run_status", {"run_id": run_id, "status": "resuming"})
+                result = await resume_collection_graph(request, progress_cb=on_progress)
+            else:
+                BUS.publish(run_id, "run_status", {"run_id": run_id, "status": "running"})
+                result = await run_collection_graph(request, progress_cb=on_progress)
 
-        BUS.publish(run_id, "run_completed", {"run_id": run_id, "status": "completed", "result": result.model_dump(mode="json") if hasattr(result, "model_dump") else result})
-    except CollectionPaused as exc:
-        BUS.publish(
-            run_id,
-            "run_paused",
-            {
-                "run_id": run_id,
-                "reason": exc.reason,
-                "next_stages": list(exc.next_stages),
-            },
-        )
-    except Exception as exc:  # noqa: BLE001
-        BUS.publish(run_id, "run_failed", {"run_id": run_id, "status": "failed", "error": str(exc)})
+            BUS.publish(run_id, "run_completed", {"run_id": run_id, "status": "completed", "result": result.model_dump(mode="json") if hasattr(result, "model_dump") else result})
+        except CollectionPaused as exc:
+            BUS.publish(
+                run_id,
+                "run_paused",
+                {
+                    "run_id": run_id,
+                    "reason": exc.reason,
+                    "next_stages": list(exc.next_stages),
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            error = creds.redact(str(exc)) if creds else str(exc)
+            BUS.publish(run_id, "run_failed", {"run_id": run_id, "status": "failed", "error": error})
 
 
 @app.post("/api/runs", response_model=CreateRunResponse)
-async def create_run(body: CreateRunInput, background: BackgroundTasks) -> CreateRunResponse:
-    await select_provider_once()
+async def create_run(body: CreateRunInput, background: BackgroundTasks, creds: SessionLLMCredentials) -> CreateRunResponse:
+    await _ensure_llm_access(creds)
     request = body.to_request()
     run_id = request.run_id
     BUS.ensure_run(run_id)
-    background.add_task(_run_in_background, request, is_resume=False)
+    background.add_task(_run_in_background, request, is_resume=False, creds=creds)
     return CreateRunResponse(run_id=run_id, status="started")
 
 
 @app.post("/api/runs/from-text", response_model=CreateRunResponse)
-async def create_run_from_text(body: CreateRunFromTextInput, background: BackgroundTasks) -> CreateRunResponse:
-    await select_provider_once()
+async def create_run_from_text(body: CreateRunFromTextInput, background: BackgroundTasks, creds: SessionLLMCredentials) -> CreateRunResponse:
+    await _ensure_llm_access(creds)
     interp = QueryInterpretationAgent(model=body.model_override)
-    parsed = await interp.interpret(message=body.message, context=QueryInterpretationContext(mode="new_run"))
+    with use_llm_credentials(creds):
+        parsed = await interp.interpret(message=body.message, context=QueryInterpretationContext(mode="new_run"))
     if not parsed.in_scope:
         raise HTTPException(status_code=400, detail=parsed.user_message_to_show_if_out_of_scope)
     if not parsed.gene_symbol:
@@ -200,20 +255,20 @@ async def create_run_from_text(body: CreateRunFromTextInput, background: Backgro
         run_id=run_id,
     )
     BUS.ensure_run(run_id)
-    background.add_task(_run_in_background, request, is_resume=False)
+    background.add_task(_run_in_background, request, is_resume=False, creds=creds)
     return CreateRunResponse(run_id=run_id, status="started")
 
 
 @app.post("/api/runs/{run_id}/resume", response_model=ResumeRunResponse)
-async def resume_run(run_id: str, background: BackgroundTasks) -> ResumeRunResponse:
-    await select_provider_once()
+async def resume_run(run_id: str, background: BackgroundTasks, creds: SessionLLMCredentials) -> ResumeRunResponse:
+    await _ensure_llm_access(creds)
     snapshot = await get_collection_state(run_id)
     request = snapshot.values.get("query")
     if request is None:
         raise HTTPException(status_code=404, detail=f"Unknown run_id `{run_id}`")
     if isinstance(request, dict):
         request = CollectorRequest.model_validate(request)
-    background.add_task(_run_in_background, request, is_resume=True)
+    background.add_task(_run_in_background, request, is_resume=True, creds=creds)
     return ResumeRunResponse(run_id=run_id, status="resumed")
 
 
@@ -351,7 +406,7 @@ def _evidence_index_from_records(records: list[EvidenceRecord], *, max_items: in
 
 
 @app.post("/api/runs/{run_id}/followup", response_model=FollowupResponse)
-async def followup(run_id: str, body: FollowupInput) -> FollowupResponse:
+async def followup(run_id: str, body: FollowupInput, creds: SessionLLMCredentials) -> FollowupResponse:
     BUS.ensure_run(run_id)
     layout = artifact_layout(run_id)
     dossier_path = layout["dossier"]
@@ -402,10 +457,11 @@ async def followup(run_id: str, body: FollowupInput) -> FollowupResponse:
             )
 
     interp = QueryInterpretationAgent(model=model_override)
-    parsed = await interp.interpret(
-        message=body.message,
-        context=QueryInterpretationContext(mode="followup", active_gene=gene, active_disease=disease),
-    )
+    with use_llm_credentials(creds):
+        parsed = await interp.interpret(
+            message=body.message,
+            context=QueryInterpretationContext(mode="followup", active_gene=gene, active_disease=disease),
+        )
     if not parsed.in_scope:
         return FollowupResponse(
             run_id=run_id,
@@ -451,7 +507,8 @@ async def followup(run_id: str, body: FollowupInput) -> FollowupResponse:
             ],
         )
         agent = FollowupAgent(model=model_override)
-        answer = await agent.answer(question=body.message, context=context)
+        with use_llm_credentials(creds):
+            answer = await agent.answer(question=body.message, context=context)
         BUS.publish(run_id, "followup_completed", {"run_id": run_id, "used_urls": used_urls})
         return FollowupResponse(
             run_id=run_id,
@@ -461,8 +518,9 @@ async def followup(run_id: str, body: FollowupInput) -> FollowupResponse:
             used_urls=used_urls,
         )
     except Exception as exc:  # noqa: BLE001
-        BUS.publish(run_id, "followup_failed", {"run_id": run_id, "error": str(exc)})
-        raise HTTPException(status_code=500, detail=f"Follow-up failed: {exc}")
+        error = creds.redact(str(exc)) if creds else str(exc)
+        BUS.publish(run_id, "followup_failed", {"run_id": run_id, "error": error})
+        raise HTTPException(status_code=500, detail=f"Follow-up failed: {error}")
 
 
 @app.post("/api/runs/{run_id}/plan-decision")

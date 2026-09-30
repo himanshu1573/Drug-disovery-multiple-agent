@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import asyncio
+import hashlib
 import time
 import random
 import re
@@ -10,7 +11,9 @@ from typing import Any, Literal
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.runnables import Runnable
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
+
+from .llm_credentials import current_llm_credentials
 
 
 def _provider_for_model(model: str) -> str:
@@ -39,11 +42,18 @@ def require_llm_planner() -> bool:
 
 
 def google_api_key() -> str | None:
+    # A session key replaces server keys entirely, so its runs never spend the server's quota.
+    creds = current_llm_credentials()
+    if creds is not None:
+        return creds.api_key if creds.provider == "google" else None
     # Support either env var name; LangChain expects GOOGLE_API_KEY by default.
     return os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
 
 def openai_api_key() -> str | None:
+    creds = current_llm_credentials()
+    if creds is not None:
+        return creds.api_key if creds.provider == "openai" else None
     return os.getenv("OPENAI_API_KEY")
 
 
@@ -58,7 +68,11 @@ def llm_calls_enabled() -> bool:
     Default behavior:
     - Normal runs: enabled
     - Pytest: disabled (deterministic) unless explicitly enabled.
+    - Session key present: enabled. provider_select sets A4T_LLM_CALLS_ENABLED=0 process-wide when
+      the server has no working key, which must not block users who bring their own.
     """
+    if current_llm_credentials() is not None:
+        return True
     raw = os.getenv("A4T_LLM_CALLS_ENABLED")
     if raw is None:
         return not bool(os.getenv("PYTEST_CURRENT_TEST"))
@@ -72,7 +86,13 @@ def preferred_provider() -> str:
       - auto (default)
       - google|gemini
       - openai
+
+    A session key always pins the provider to the key's provider.
     """
+    creds = current_llm_credentials()
+    if creds is not None:
+        return creds.provider
+
     override = os.getenv("A4T_LLM_PROVIDER", "").strip().lower()
 
     # If provider_select.py has already run and narrowed the choice to a specific working provider,
@@ -95,6 +115,9 @@ def forced_provider() -> str | None:
 
     Unlike preferred_provider(), this reflects user intent even if keys are missing.
     """
+    creds = current_llm_credentials()
+    if creds is not None:
+        return creds.provider
     override = os.getenv("A4T_LLM_PROVIDER", "").strip().lower()
     if override in {"google", "gemini"}:
         return "google"
@@ -144,12 +167,34 @@ def ensure_llm_available(agent_name: str) -> None:
         )
 
 
+def _has_key_for(provider: str) -> bool:
+    return bool(google_api_key() if provider == "google" else openai_api_key())
+
+
+def _openai_client_key() -> SecretStr | None:
+    key = openai_api_key()
+    return SecretStr(key) if key else None
+
+
+def resolve_model(model: str, *, role: str = "fast") -> str:
+    """Swap `model` for the active provider's default when its own provider has no API key.
+
+    Agent defaults are OpenAI model names (e.g. `gpt-5`). Without this, a Gemini-only key builds an
+    OpenAI client with no credentials, which raises before any fallback candidate is tried.
+    """
+    if _has_key_for(_provider_for_model(model)) or not _has_key_for(preferred_provider()):
+        return model
+    return default_reasoning_model() if role == "reasoning" else default_fast_model()
+
+
 def get_llm(model: str, temperature: float = 0.0, **kwargs: Any) -> ChatOpenAI | ChatGoogleGenerativeAI:
     """
     Factory function to get a LangChain LLM instance.
     Correctly routes to OpenAI or Google based on model name substrings.
+    Keys are passed explicitly so a session key is used instead of the server's env key.
     """
     provider = preferred_provider()
+    model = resolve_model(model)
     m_lower = model.lower()
 
     # Force Google if model looks like Gemini/Gemma
@@ -160,11 +205,11 @@ def get_llm(model: str, temperature: float = 0.0, **kwargs: Any) -> ChatOpenAI |
             google_api_key=google_api_key(),
             **kwargs,
         )
-    
+
     # Force OpenAI if model looks like GPT
     if "gpt-" in m_lower:
-        return ChatOpenAI(model=model, temperature=temperature, **kwargs)
-    
+        return ChatOpenAI(model=model, temperature=temperature, api_key=_openai_client_key(), **kwargs)
+
     # If ambiguous, use the preferred provider.
     if provider == "google":
         return ChatGoogleGenerativeAI(
@@ -174,10 +219,10 @@ def get_llm(model: str, temperature: float = 0.0, **kwargs: Any) -> ChatOpenAI |
             **kwargs,
         )
     if openai_api_key():
-        return ChatOpenAI(model=model, temperature=temperature, **kwargs)
-        
+        return ChatOpenAI(model=model, temperature=temperature, api_key=_openai_client_key(), **kwargs)
+
     # Default fallback
-    return ChatOpenAI(model=model, temperature=temperature, **kwargs)
+    return ChatOpenAI(model=model, temperature=temperature, api_key=_openai_client_key(), **kwargs)
 
 
 def structured_runnable(
@@ -411,39 +456,49 @@ _GATE_SEMAPHORES: dict[str, asyncio.Semaphore] = {}
 _NEXT_ALLOWED_AT: dict[str, float] = {}
 
 
-async def _llm_gate_enter(provider: str) -> None:
-    sem = _GATE_SEMAPHORES.get(provider)
+def _gate_key(provider: str) -> str:
+    """Rate-limit bucket. Provider quotas are per API key, so each session key gets its own bucket
+    instead of queueing behind other users' runs."""
+    creds = current_llm_credentials()
+    if creds is None:
+        return provider
+    return f"{provider}:{hashlib.sha256(creds.api_key.encode()).hexdigest()[:16]}"
+
+
+async def _llm_gate_enter(provider: str, gate: str) -> None:
+    sem = _GATE_SEMAPHORES.get(gate)
     if sem is None:
         sem = asyncio.Semaphore(_llm_concurrency(provider))
-        _GATE_SEMAPHORES[provider] = sem
+        _GATE_SEMAPHORES[gate] = sem
     await asyncio.wait_for(sem.acquire(), timeout=_llm_gate_acquire_timeout_s(provider))
 
     min_interval = _llm_min_interval_s(provider)
     if min_interval <= 0:
         return
 
-    lock = _GATE_LOCKS.get(provider)
+    lock = _GATE_LOCKS.get(gate)
     if lock is None:
         lock = asyncio.Lock()
-        _GATE_LOCKS[provider] = lock
+        _GATE_LOCKS[gate] = lock
 
     async with lock:
         now = time.monotonic()
-        allowed_at = _NEXT_ALLOWED_AT.get(provider, 0.0)
+        allowed_at = _NEXT_ALLOWED_AT.get(gate, 0.0)
         if now < allowed_at:
             await asyncio.sleep(allowed_at - now)
             now = time.monotonic()
-        _NEXT_ALLOWED_AT[provider] = now + min_interval
+        _NEXT_ALLOWED_AT[gate] = now + min_interval
 
 
-def _llm_gate_exit(provider: str) -> None:
-    sem = _GATE_SEMAPHORES.get(provider)
+def _llm_gate_exit(gate: str) -> None:
+    sem = _GATE_SEMAPHORES.get(gate)
     if sem is not None:
         sem.release()
 
 
 async def _ainvoke_guarded(runnable: Runnable, prompt: str, *, provider: str) -> Any:
-    await _llm_gate_enter(provider)
+    gate = _gate_key(provider)
+    await _llm_gate_enter(provider, gate)
     try:
         # langchain-google-genai has had cases where `ainvoke()` blocks the event loop (no await points),
         # which defeats asyncio timeouts and can hang UI runs. Run Google calls in a thread.
@@ -451,7 +506,7 @@ async def _ainvoke_guarded(runnable: Runnable, prompt: str, *, provider: str) ->
             return await asyncio.wait_for(asyncio.to_thread(runnable.invoke, prompt), timeout=_timeout_s())
         return await asyncio.wait_for(runnable.ainvoke(prompt), timeout=_timeout_s())
     finally:
-        _llm_gate_exit(provider)
+        _llm_gate_exit(gate)
 
 
 async def ainvoke_with_fallbacks(
@@ -484,7 +539,10 @@ async def ainvoke_with_fallbacks(
     seen: set[str] = set()
     ordered_candidates: list[str] = []
     for model in candidates:
-        if not model or model in seen:
+        if not model:
+            continue
+        model = resolve_model(model, role=role)
+        if model in seen:
             continue
         seen.add(model)
         ordered_candidates.append(model)
@@ -562,7 +620,10 @@ async def structured_ainvoke_with_fallbacks(
     seen: set[str] = set()
     ordered_candidates: list[str] = []
     for model in candidates:
-        if not model or model in seen:
+        if not model:
+            continue
+        model = resolve_model(model, role=role)
+        if model in seen:
             continue
         seen.add(model)
         ordered_candidates.append(model)

@@ -1,9 +1,15 @@
+import { getSessionLlmKey, type LlmProvider } from "@/lib/llmKey";
 import type { PlanDecisionStatus, ReviewDecisionStatus, Snapshot, SourceName } from "@/lib/types";
 
 const ENV_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 const API_BASE =
   (typeof ENV_API_BASE === "string" && ENV_API_BASE.trim().length > 0 ? ENV_API_BASE : null)?.replace(/\/+$/, "") ??
   (process.env.NODE_ENV === "development" ? "http://localhost:8000/api" : "/api");
+
+// Bring-your-own-key: sent on every request that can trigger LLM calls; the API never stores it.
+function llmKeyHeaders(key = getSessionLlmKey()): Record<string, string> {
+  return key ? { "x-llm-provider": key.provider, "x-llm-api-key": key.apiKey } : {};
+}
 
 async function readApiError(res: Response): Promise<string> {
   const contentType = res.headers.get("content-type") ?? "";
@@ -34,6 +40,24 @@ async function readApiError(res: Response): Promise<string> {
   return trimmed.length > 1200 ? `${trimmed.slice(0, 1200)}…` : trimmed;
 }
 
+export async function getHealth(): Promise<{ status: string; provider?: { provider: "openai" | "google" | "none" } }> {
+  const res = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+  if (!res.ok) throw new Error(await readApiError(res));
+  return res.json();
+}
+
+export async function validateLlmKey(
+  provider: LlmProvider,
+  apiKey: string,
+): Promise<{ valid: boolean; provider: LlmProvider; error: string | null }> {
+  const res = await fetch(`${API_BASE}/session/validate`, {
+    method: "POST",
+    headers: llmKeyHeaders({ provider, apiKey }),
+  });
+  if (!res.ok) throw new Error(await readApiError(res));
+  return res.json();
+}
+
 export async function createRun(input: {
   gene_symbol: string;
   disease_id?: string;
@@ -45,7 +69,7 @@ export async function createRun(input: {
 }): Promise<{ run_id: string; status: string }> {
   const res = await fetch(`${API_BASE}/runs`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...llmKeyHeaders() },
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(await readApiError(res));
@@ -62,7 +86,7 @@ export async function createRunFromText(input: {
 }): Promise<{ run_id: string; status: string }> {
   const res = await fetch(`${API_BASE}/runs/from-text`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...llmKeyHeaders() },
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(await readApiError(res));
@@ -72,7 +96,7 @@ export async function createRunFromText(input: {
 export async function postFollowup(runId: string, input: { message: string; urls?: string[] }): Promise<{ run_id: string; answer_markdown: string; used_urls: string[] }> {
   const res = await fetch(`${API_BASE}/runs/${encodeURIComponent(runId)}/followup`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...llmKeyHeaders() },
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(await readApiError(res));
@@ -121,6 +145,7 @@ export async function postReviewDecision(input: {
 export async function resumeRun(runId: string): Promise<{ run_id: string; status: string }> {
   const res = await fetch(`${API_BASE}/runs/${encodeURIComponent(runId)}/resume`, {
     method: "POST",
+    headers: llmKeyHeaders(),
   });
   if (!res.ok) throw new Error(await readApiError(res));
   return res.json();

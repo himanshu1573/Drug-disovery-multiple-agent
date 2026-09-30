@@ -4,9 +4,13 @@ import asyncio
 import os
 import time
 from dataclasses import dataclass
+from typing import Any
 
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic import SecretStr
+
+from .llm_credentials import LLMCredentials
 
 
 def _bool_env(name: str, default: str = "0") -> bool:
@@ -34,28 +38,52 @@ def _google_key_present() -> bool:
     return bool((os.getenv("GOOGLE_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")).strip())
 
 
-async def _probe_openai(*, model: str) -> tuple[bool, str | None]:
-    if not _openai_key_present():
+def _openai_probe_model() -> str:
+    return os.getenv("A4T_OPENAI_FAST_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+
+
+def _google_probe_model() -> str:
+    return os.getenv("A4T_GOOGLE_FAST_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+
+
+async def _probe_openai(*, model: str, api_key: str | None = None) -> tuple[bool, str | None]:
+    """Probe OpenAI with `api_key`, or with the server's env key when omitted."""
+    if api_key is None and not _openai_key_present():
         return False, "OPENAI_API_KEY not set"
     try:
         # Keep the probe lightweight; avoid provider-specific kwargs that can drift across library versions.
-        llm = ChatOpenAI(model=model, temperature=0)
+        key_kwargs: dict[str, Any] = {"api_key": SecretStr(api_key)} if api_key is not None else {}
+        llm = ChatOpenAI(model=model, temperature=0, **key_kwargs)
         await asyncio.wait_for(llm.ainvoke("ping"), timeout=_probe_timeout_s())
         return True, None
     except Exception as exc:  # noqa: BLE001
         return False, f"{type(exc).__name__}: {exc}"
 
 
-async def _probe_google(*, model: str) -> tuple[bool, str | None]:
-    if not _google_key_present():
+async def _probe_google(*, model: str, api_key: str | None = None) -> tuple[bool, str | None]:
+    """Probe Google with `api_key`, or with the server's env key when omitted."""
+    if api_key is None and not _google_key_present():
         return False, "GOOGLE_API_KEY/GEMINI_API_KEY not set"
     try:
-        llm = ChatGoogleGenerativeAI(model=model, temperature=0, max_output_tokens=1)
+        key_kwargs: dict[str, Any] = {"google_api_key": api_key} if api_key is not None else {}
+        llm = ChatGoogleGenerativeAI(model=model, temperature=0, max_output_tokens=1, **key_kwargs)
         # Defensive: google client has had cases where `ainvoke()` blocks; use a thread.
         await asyncio.wait_for(asyncio.to_thread(llm.invoke, "ping"), timeout=_probe_timeout_s())
         return True, None
     except Exception as exc:  # noqa: BLE001
         return False, f"{type(exc).__name__}: {exc}"
+
+
+async def probe_llm_credentials(creds: LLMCredentials) -> tuple[bool, str | None]:
+    """Check a session key with the same lightweight probe used for server keys.
+
+    Unlike select_provider_once(), this never caches and never mutates process env.
+    """
+    if creds.provider == "openai":
+        ok, err = await _probe_openai(model=_openai_probe_model(), api_key=creds.api_key)
+    else:
+        ok, err = await _probe_google(model=_google_probe_model(), api_key=creds.api_key)
+    return ok, creds.redact(err) if err else None
 
 
 @dataclass(frozen=True)
@@ -115,12 +143,9 @@ async def select_provider_once() -> ProviderSelection:
 
         system_pref = _system_provider_pref()
         
-        openai_model = os.getenv("A4T_OPENAI_FAST_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
-        google_model = os.getenv("A4T_GOOGLE_FAST_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
-
         # Start probes in parallel to minimize latency
-        openai_task = _probe_openai(model=openai_model)
-        google_task = _probe_google(model=google_model)
+        openai_task = _probe_openai(model=_openai_probe_model())
+        google_task = _probe_google(model=_google_probe_model())
         
         results = await asyncio.gather(openai_task, google_task, return_exceptions=True)
         
